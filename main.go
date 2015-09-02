@@ -1,47 +1,45 @@
 // 2015 - Mathieu Lonjaret
 
-// The acmetags program prints the tags of the acme windows.
+// The lw program lists all existing acme windows. The output is sorted
+// according to the following criteria, in order:
+// - whether the window is clean
+// - whether it is corresponding to a file on disk
+// - the file modtime
+// As usual with acme, if lw is run from the tag bar, the output goes to the
+// Errors window.
 package main
 
 import (
 	"bytes"
-//	"errors"
 	"flag"
 	"fmt"
-//	"io/ioutil"
 	"log"
 	"os"
-//	"os/exec"
-//	"strings"
-	"strconv"
 	"sort"
+	"strconv"
 	"time"
 
 	"9fans.net/go/acme"
 )
 
-var (
-	output    = flag.String("o", "", "output file. will only truncate if no error and output is non empty.")
-	timestamp = flag.Bool("ts", false, "add a timestamp suffix to the output file name")
-	allTags   = flag.Bool("all", false, "print tags of all windows, instead of only \"win\" windows.")
-)
+var fileOnly = flag.Bool("f", false, "Only list windows corresponding to files.")
 
 func usage() {
-	fmt.Fprintf(os.Stderr, "usage: acmetags [-all]\n")
+	fmt.Fprintf(os.Stderr, "usage: lw\n")
 	flag.PrintDefaults()
 	os.Exit(2)
 }
 
 type winInfo struct {
-	w acme.WinInfo
-	dirty bool
+	w       acme.WinInfo
+	dirty   bool
 	modTime time.Time // if zero -> not a file
 }
 
 type winInfos []winInfo
 
-func (w winInfos) Len() int           { return len(w) }
-func (w winInfos) Swap(i, j int)      { w[i], w[j] = w[j], w[i] }
+func (w winInfos) Len() int      { return len(w) }
+func (w winInfos) Swap(i, j int) { w[i], w[j] = w[j], w[i] }
 func (w winInfos) Less(i, j int) bool {
 	if w[i].dirty {
 		if !w[j].dirty {
@@ -53,7 +51,7 @@ func (w winInfos) Less(i, j int) bool {
 		if w[j].modTime.IsZero() {
 			return false
 		}
-		return w[i].modTime.After(w[j].modTime)	
+		return w[i].modTime.After(w[j].modTime)
 	}
 	if w[j].dirty {
 		return false
@@ -86,8 +84,8 @@ func main() {
 			log.Fatalf("unexpected number of fields for (%v, %d): wanted %v, got %v", win.Name, win.ID, 8, len(fields))
 		}
 		isDirty, _ := strconv.ParseBool(string(fields[4]))
-		wini := winInfo {
-			w: win,
+		wini := winInfo{
+			w:     win,
 			dirty: isDirty,
 		}
 		fi, err := os.Stat(win.Name)
@@ -95,13 +93,24 @@ func main() {
 			if !os.IsNotExist(err) {
 				log.Fatalf("could not stat disk file of (%v, %d): %v", win.Name, win.ID, err)
 			}
+			if *fileOnly {
+				continue
+			}
 		} else {
+			if *fileOnly && fi.IsDir() {
+				continue
+			}
 			wini.modTime = fi.ModTime()
 		}
 		allWins = append(allWins, wini)
 	}
 	sort.Sort(winInfos(allWins))
-	for _,v := range allWins {
-		fmt.Printf("%v	%v\n", v.dirty, v.w.Name)
+	dirtyness := map[bool]string{
+		true:  "dirty",
+		false: "clean",
+	}
+	println()
+	for _, v := range allWins {
+		fmt.Printf("%v	%v\n", dirtyness[v.dirty], v.w.Name)
 	}
 }
