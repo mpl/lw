@@ -80,8 +80,12 @@ func main() {
 			log.Fatalf("could not read ctl file of (%v, %d): %v", win.Name, win.ID, err)
 		}
 		fields := bytes.Fields(b)
-		if len(fields) != 8 {
-			log.Fatalf("unexpected number of fields for (%v, %d): wanted %v, got %v", win.Name, win.ID, 8, len(fields))
+		// the number of fields is unpredictable as 7th field (the font
+		// used) can have spaces in it. I could use a regexp, but who
+		// cares, as the field I'm interested in is before in the line
+		// anyway.
+		if len(fields) < 8 {
+			log.Fatalf("unexpected number of fields for (%v, %d): wanted at least %v, got %v", win.Name, win.ID, 8, len(fields))
 		}
 		isDirty, _ := strconv.ParseBool(string(fields[4]))
 		wini := winInfo{
